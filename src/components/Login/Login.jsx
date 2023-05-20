@@ -36,6 +36,7 @@ function Copyright(props) {
       >
         upGrad
       </a>{" "}
+      {2021}
       {"."}
     </Typography>
   );
