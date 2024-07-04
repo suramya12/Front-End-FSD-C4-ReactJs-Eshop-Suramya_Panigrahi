@@ -42,7 +42,7 @@ jobs:
       - name: Retrieve and Filter Results
         run: |
           ./cx results show --scan-id ${{ env.SCAN_ID }} --report-format sarif --output-name cx_result.sarif --output-path .
-          python3 -c "
+          python3 <<EOF
 import json
 
 def filter_sarif(input_file, output_file):
@@ -61,7 +61,7 @@ def filter_sarif(input_file, output_file):
         json.dump(sarif, file, indent=2)
 
 filter_sarif('cx_result.sarif', 'filtered_cx_result.sarif')
-          "
+EOF
 
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v2
