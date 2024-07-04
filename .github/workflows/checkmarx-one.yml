@@ -28,14 +28,14 @@ jobs:
           branch: ${{ github.ref }}
           additional_params: --report-format sarif --output-path .
 
-      - name: Install jq and Python
+      - name: Install Python
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq python3
+          sudo apt-get install -y python3
 
       - name: Filter SARIF file
         run: |
-          python3 - <<'EOF'
+          echo "
 import json
 
 def filter_sarif(input_file, output_file):
@@ -54,7 +54,8 @@ def filter_sarif(input_file, output_file):
         json.dump(sarif, file, indent=2)
 
 filter_sarif('cx_result.sarif', 'filtered_cx_result.sarif')
-EOF
+          " > filter_sarif.py
+          python3 filter_sarif.py
 
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v2
