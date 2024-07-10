@@ -1,10 +1,10 @@
 name: Checkmarx One Scan
+
 on:
   push:
-    branches:
-      - main
-      - master
-      - dev
+    branches: [main, master, dev]
+  pull_request:
+    branches: [main, master]
 
 permissions:
   security-events: write
@@ -14,54 +14,51 @@ jobs:
   checkmarx-scan:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
-      - name: Checkmarx AST Github Action
-        id: checkmarx-scan
-        uses: Checkmarx/ast-github-action@2.0.23
+      - name: Checkmarx AST Scan
+        uses: Checkmarx/ast-github-action@2.0.28  # Updated to latest version
         with:
           base_uri: https://ast.checkmarx.net
           cx_tenant: sonype-01
           cx_client_id: Test-Github-Suramya
           cx_client_secret: kAmCLxJ69sKmdw01fibmSoxmAow9giZC
           project_name: ${{ github.repository }}
-          branch: ${{ github.ref }}
+          branch: ${{ github.ref_name }}
           additional_params: --report-format sarif --output-path .
 
-      - name: Install jq and Python
+      - name: Filter and Upload SARIF
+        if: success()
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq python3
+          sudo apt-get update && sudo apt-get install -y jq
+          
+          # Filter SARIF
+          jq '
+          .runs[].results |= map(
+            select(
+              (.ruleId | startswith("Cx") | not) and
+              ((.tags.Usage // []) | contains(["Used"]) or contains(["Potentially Used"]) or length == 0)
+            )
+          )
+          ' cx_result.sarif > filtered_cx_result.sarif
+          
+          # Upload filtered SARIF
+          gh security-events upload-sarif filtered_cx_result.sarif
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Display Raw SARIF Data
+      - name: Fail on High Severity Issues
+        if: success()
         run: |
-          cat cx_result.sarif
+          HIGH_SEVERITY_COUNT=$(jq '[.runs[].results[] | select(.level == "error")] | length' filtered_cx_result.sarif)
+          if [ $HIGH_SEVERITY_COUNT -gt 0 ]; then
+            echo "Found $HIGH_SEVERITY_COUNT high severity issues. Failing the build."
+            exit 1
+          fi
 
-      - name: Filter SARIF file
-        run: |
-          python3 << 'EOF'
-          import json
-          
-          def filter_sarif(input_file, output_file):
-              with open(input_file, 'r') as file:
-                  sarif = json.load(file)
-          
-              filtered_runs = []
-              for run in sarif['runs']:
-                  filtered_results = [result for result in run['results'] if not result['ruleId'].startswith('Cx')]
-                  run['results'] = filtered_results
-                  filtered_runs.append(run)
-          
-              sarif['runs'] = filtered_runs
-          
-              with open(output_file, 'w') as file:
-                  json.dump(sarif, file, indent=2)
-          
-          filter_sarif('cx_result.sarif', 'filtered_cx_result.sarif')
-          EOF
-
-      - name: Upload Filtered SARIF file
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: filtered_cx_result.sarif
+      - name: Cleanup
+        if: always()
+        run: rm -f cx_result.sarif filtered_cx_result.sarif
