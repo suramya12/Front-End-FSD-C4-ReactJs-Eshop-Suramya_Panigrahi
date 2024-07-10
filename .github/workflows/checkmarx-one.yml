@@ -46,41 +46,41 @@ jobs:
       - name: Filter SARIF File
         id: filter-sarif
         run: |
-          python3 << 'EOF'
-            import json
-            
-            def filter_sarif(input_file, output_file, filter_rule):
-                with open(input_file, 'r') as file:
-                    sarif = json.load(file)
-            
-                filtered_runs = []
-                for run in sarif['runs']:
-                    filtered_results = [result for result in run['results'] if filter_rule(result)]
-                    run['results'] = filtered_results
-                    filtered_runs.append(run)
-            
-                sarif['runs'] = filtered_runs
-            
-                with open(output_file, 'w') as file:
-                    json.dump(sarif, file, indent=2)
-            
-            def custom_filter(result):
-                # Exclude results with ruleId starting with 'Cx'
-                rule_id_check = not result['ruleId'].startswith('Cx')
-                
-                # Check for the 'Usage' tag
-                usage_tags = result.get('tags', {}).get('Usage', [])
-                usage_check = 'Used' in usage_tags or 'Potentially Used' in usage_tags
-            
-                # If 'Usage' tag is not present, log a message and consider it as passed
-                if not usage_tags:
-                    print("Usage parameter not present, ignoring this filter.")
-                    usage_check = True
-            
-                return rule_id_check and usage_check
-            
-            filter_sarif('cx_result.sarif', 'filtered_cx_result.sarif', custom_filter)
-            EOF
+          python3 <<EOF
+          import json
+          
+          def filter_sarif(input_file, output_file, filter_rule):
+              with open(input_file, 'r') as file:
+                  sarif = json.load(file)
+          
+              filtered_runs = []
+              for run in sarif['runs']:
+                  filtered_results = [result for result in run['results'] if filter_rule(result)]
+                  run['results'] = filtered_results
+                  filtered_runs.append(run)
+          
+              sarif['runs'] = filtered_runs
+          
+              with open(output_file, 'w') as file:
+                  json.dump(sarif, file, indent=2)
+          
+          def custom_filter(result):
+              # Exclude results with ruleId starting with 'Cx'
+              rule_id_check = not result['ruleId'].startswith('Cx')
+              
+              # Check for the 'Usage' tag
+              usage_tags = result.get('tags', {}).get('Usage', [])
+              usage_check = 'Used' in usage_tags or 'Potentially Used' in usage_tags
+          
+              # If 'Usage' tag is not present, log a message and consider it as passed
+              if not usage_tags:
+                  print("Usage parameter not present, ignoring this filter.")
+                  usage_check = True
+          
+              return rule_id_check and usage_check
+          
+          filter_sarif('cx_result.sarif', 'filtered_cx_result.sarif', custom_filter)
+          EOF
 
       - name: Upload Filtered SARIF File
         uses: github/codeql-action/upload-sarif@v2
